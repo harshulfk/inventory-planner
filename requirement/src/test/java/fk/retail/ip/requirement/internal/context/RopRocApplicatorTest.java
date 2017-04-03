@@ -6,12 +6,15 @@ import com.google.common.collect.Maps;
 import com.google.inject.Inject;
 import fk.retail.ip.requirement.config.TestModule;
 import fk.retail.ip.requirement.internal.Constants;
+import fk.retail.ip.requirement.internal.command.PayloadCreationHelper;
 import fk.retail.ip.requirement.internal.entities.Requirement;
 import fk.retail.ip.requirement.internal.entities.RequirementSnapshot;
 import fk.retail.ip.requirement.internal.enums.PolicyType;
 import fk.retail.ip.requirement.internal.repository.TestHelper;
 import java.util.List;
 import java.util.Map;
+
+import fk.retail.ip.requirement.model.RequirementChangeRequest;
 import org.jukito.JukitoRunner;
 import org.jukito.UseModules;
 import org.junit.Assert;
@@ -29,6 +32,8 @@ public class RopRocApplicatorTest {
 
     @Inject
     ObjectMapper objectMapper;
+    @Inject
+    PayloadCreationHelper payloadCreationHelper;
     @Mock
     ForecastContext forecastContext;
     @Mock
@@ -44,7 +49,7 @@ public class RopRocApplicatorTest {
         List<Double> forecast = Lists.newArrayList(1.0,2.0,3.0,4.0,5.0,6.0,7.0,8.0,9.0,10.0,11.0,12.0,13.0,14.0,15.0);
         Mockito.when(forecastContext.getForecast(Matchers.anyString(), Matchers.anyString())).thenReturn(forecast);
         Mockito.when(onHandQuantityContext.getTotalQuantity(Matchers.anyString(), Matchers.anyString())).thenReturn(0.0);
-        ropRocApplicator = new RopRocApplicator(objectMapper);
+        ropRocApplicator = new RopRocApplicator(objectMapper,payloadCreationHelper);
     }
 
     @Test
@@ -53,6 +58,7 @@ public class RopRocApplicatorTest {
         Requirement requirement2 = TestHelper.getRequirement("fsn1", "wh2", "proposed", true, new RequirementSnapshot(), 0.0, null, 0, 0, null, 0, null, null);
         Requirement requirement3 = TestHelper.getRequirement("fsn1", "wh3", "proposed", true, new RequirementSnapshot(), 0.0, null, 0, 0, null, 0, null, null);
         List<Requirement> requirements = Lists.newArrayList(requirement1, requirement2, requirement3);
+        List<RequirementChangeRequest> requirementChangeRequestList = Lists.newArrayList();
         Map<PolicyType, String> policyMap = Maps.newHashMap();
         //rop > maxdays
         String rop2 = String.format(policyFormat, "wh2", maxdays + 1);
@@ -60,7 +66,7 @@ public class RopRocApplicatorTest {
         String rop3 = String.format(policyFormat, "wh3", -1);
         //rop for wh1 is not present
         policyMap.put(PolicyType.ROP, "{" + rop2 + "," + rop3 + "}");
-        ropRocApplicator.applyPolicies("fsn1", requirements, policyMap, forecastContext, onHandQuantityContext);
+        ropRocApplicator.applyPolicies("fsn1", requirements, policyMap, forecastContext, onHandQuantityContext, requirementChangeRequestList);
         Lists.newArrayList(requirement2, requirement3).forEach(requirement -> {
             Assert.assertEquals("error", requirement.getState());
             Assert.assertEquals("Valid Rop policy for this fsn is not present", requirement.getOverrideComment());
@@ -73,6 +79,7 @@ public class RopRocApplicatorTest {
         Requirement requirement2 = TestHelper.getRequirement("fsn1", "wh2", "proposed", true, new RequirementSnapshot(), 0.0, null, 0, 0, null, 0, null, null);
         Requirement requirement3 = TestHelper.getRequirement("fsn1", "wh3", "proposed", true, new RequirementSnapshot(), 0.0, null, 0, 0, null, 0, null, null);
         List<Requirement> requirements = Lists.newArrayList(requirement1, requirement2, requirement3);
+        List<RequirementChangeRequest> requirementChangeRequestList = Lists.newArrayList();
         Map<PolicyType, String> policyMap = Maps.newHashMap();
         int rop = 40;
         String rop1 = String.format(policyFormat, "wh1", rop);
@@ -85,7 +92,7 @@ public class RopRocApplicatorTest {
         String roc3 = String.format(policyFormat, "wh3", rop - 1);
         //rop for wh1 is not present
         policyMap.put(PolicyType.ROC, "{" + roc2 + "," + roc3 + "}");
-        ropRocApplicator.applyPolicies("fsn1", requirements, policyMap, forecastContext, onHandQuantityContext);
+        ropRocApplicator.applyPolicies("fsn1", requirements, policyMap, forecastContext, onHandQuantityContext, requirementChangeRequestList);
         Lists.newArrayList(requirement2, requirement3).forEach(requirement -> {
             Assert.assertEquals("error", requirement.getState());
             Assert.assertEquals("Valid Roc policy for this fsn is not present", requirement.getOverrideComment());
@@ -95,6 +102,7 @@ public class RopRocApplicatorTest {
     @Test
     public void testPolicyApplication() {
         List<Requirement> requirements = Lists.newArrayList();
+        List<RequirementChangeRequest> requirementChangeRequestList = Lists.newArrayList();
         Map<PolicyType, String> policyMap = Maps.newHashMap();
         //basic case
         Requirement requirement1 = TestHelper.getRequirement("fsn1", "wh1", "proposed", true, new RequirementSnapshot(), 0.0, null, 0, 0, null, 0, null, null);
@@ -114,7 +122,7 @@ public class RopRocApplicatorTest {
 
         policyMap.put(PolicyType.ROP, "{" + rop1 + "," + rop2 + "," + rop3 + "}");
         policyMap.put(PolicyType.ROC, "{" + roc1 + "," + roc2 + "," + roc3 + "}");
-        ropRocApplicator.applyPolicies("fsn1", requirements, policyMap, forecastContext, onHandQuantityContext);
+        ropRocApplicator.applyPolicies("fsn1", requirements, policyMap, forecastContext, onHandQuantityContext, requirementChangeRequestList);
 
         Assert.assertEquals(24, requirement1.getQuantity(), 0.01);
         Assert.assertEquals("{\"Rop\":42.00},{\"Roc\":45.00}", requirement1.getRequirementSnapshot().getPolicy());
@@ -125,25 +133,25 @@ public class RopRocApplicatorTest {
         //rop < on hand
         Mockito.when(onHandQuantityContext.getTotalQuantity(Matchers.anyString(), Matchers.anyString())).thenReturn(22.0);
         requirement1.setQuantity(0);
-        ropRocApplicator.applyPolicies("fsn1", Lists.newArrayList(requirement1), policyMap, forecastContext, onHandQuantityContext);
+        ropRocApplicator.applyPolicies("fsn1", Lists.newArrayList(requirement1), policyMap, forecastContext, onHandQuantityContext, requirementChangeRequestList);
         Assert.assertEquals(0, requirement1.getQuantity(), 0.01);
 
         //rop = on hand
         Mockito.when(onHandQuantityContext.getTotalQuantity(Matchers.anyString(), Matchers.anyString())).thenReturn(21.0);
         requirement1.setQuantity(0);
-        ropRocApplicator.applyPolicies("fsn1", Lists.newArrayList(requirement1), policyMap, forecastContext, onHandQuantityContext);
+        ropRocApplicator.applyPolicies("fsn1", Lists.newArrayList(requirement1), policyMap, forecastContext, onHandQuantityContext, requirementChangeRequestList);
         Assert.assertEquals(3, requirement1.getQuantity(), 0.01);
 
         //rop > on hand
         Mockito.when(onHandQuantityContext.getTotalQuantity(Matchers.anyString(), Matchers.anyString())).thenReturn(20.0);
         requirement1.setQuantity(0);
-        ropRocApplicator.applyPolicies("fsn1", Lists.newArrayList(requirement1), policyMap, forecastContext, onHandQuantityContext);
+        ropRocApplicator.applyPolicies("fsn1", Lists.newArrayList(requirement1), policyMap, forecastContext, onHandQuantityContext, requirementChangeRequestList);
         Assert.assertEquals(4, requirement1.getQuantity(), 0.01);
 
         //error state should be ignored
         requirement1.setQuantity(0);
         requirement1.setState(Constants.ERROR_STATE);
-        ropRocApplicator.applyPolicies("fsn1", Lists.newArrayList(requirement1), policyMap, forecastContext, onHandQuantityContext);
+        ropRocApplicator.applyPolicies("fsn1", Lists.newArrayList(requirement1), policyMap, forecastContext, onHandQuantityContext, requirementChangeRequestList);
         Assert.assertEquals(0, requirement1.getQuantity(), 0.01);
     }
 }

@@ -32,6 +32,8 @@ public class RequirementSnapshot extends ReadOnlyEntity {
 
     private String policy;
 
+    private String policyIds;
+
     @ManyToOne(fetch = FetchType.EAGER, cascade = CascadeType.PERSIST)
     @JoinColumn(name = "group_id")
     private Group group;

@@ -6,6 +6,7 @@ import com.google.inject.Provides;
 import com.google.inject.TypeLiteral;
 import com.google.inject.multibindings.Multibinder;
 import fk.retail.ip.ssl.config.SslClientConfiguration;
+import fk.retail.ip.fdp.config.FdpConfiguration;
 import fk.retail.ip.zulu.config.ZuluConfiguration;
 import fk.sp.common.extensions.dropwizard.db.HasDataSourceFactory;
 import io.dropwizard.client.JerseyClientConfiguration;
@@ -46,6 +47,11 @@ public class ManagerModule extends AbstractModule {
     @Provides
     public SslClientConfiguration getSslClientConfiguration(ManagerConfiguration managerConfiguration) {
         return  managerConfiguration.getSslClientConfiguration();
+    }
+
+    @Provides
+    public FdpConfiguration getFdpConfiguration(ManagerConfiguration managerConfiguration) {
+        return managerConfiguration.getFdpConfiguration();
     }
 
     @Provides

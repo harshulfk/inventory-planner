@@ -4,21 +4,26 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.Lists;
 import fk.retail.ip.requirement.internal.Constants;
+import fk.retail.ip.requirement.internal.command.PayloadCreationHelper;
 import fk.retail.ip.requirement.internal.entities.Requirement;
 import fk.retail.ip.requirement.internal.enums.PolicyType;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+
+import fk.retail.ip.requirement.model.RequirementChangeRequest;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public abstract class PolicyApplicator {
 
     protected final ObjectMapper objectMapper;
+    protected final PayloadCreationHelper payloadCreationHelper;
 
-    public PolicyApplicator(ObjectMapper objectMapper) {
+    public PolicyApplicator(ObjectMapper objectMapper, PayloadCreationHelper payloadCreationHelper) {
         this.objectMapper = objectMapper;
+        this.payloadCreationHelper = payloadCreationHelper;
     }
 
     protected double convertDaysToQuantity(Double days, List<Double> forecast) {
@@ -34,7 +39,7 @@ public abstract class PolicyApplicator {
         return quantity;
     }
 
-    abstract void applyPolicies(String fsn, List<Requirement> requirements, Map<PolicyType, String> policyTypeMap, ForecastContext forecastContext, OnHandQuantityContext onHandQuantityContext);
+    abstract void applyPolicies(String fsn, List<Requirement> requirements, Map<PolicyType, String> policyTypeMap, ForecastContext forecastContext, OnHandQuantityContext onHandQuantityContext, List<RequirementChangeRequest> requirementChangeRequestList);
 
     public <T> T parsePolicy(String value, TypeReference<T> typeReference) {
         if (value != null) {

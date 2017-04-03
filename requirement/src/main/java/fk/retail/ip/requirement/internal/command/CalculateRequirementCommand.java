@@ -23,6 +23,9 @@ import fk.retail.ip.requirement.internal.entities.Requirement;
 import fk.retail.ip.requirement.internal.entities.RequirementSnapshot;
 import fk.retail.ip.requirement.internal.entities.Warehouse;
 import fk.retail.ip.requirement.internal.entities.WarehouseInventory;
+import fk.retail.ip.requirement.internal.enums.FdpRequirementEventType;
+import fk.retail.ip.requirement.internal.enums.OverrideKey;
+import fk.retail.ip.requirement.internal.enums.PolicyType;
 import fk.retail.ip.requirement.internal.enums.RequirementApprovalState;
 import fk.retail.ip.requirement.internal.repository.ForecastRepository;
 import fk.retail.ip.requirement.internal.repository.GroupFsnRepository;
@@ -35,6 +38,8 @@ import fk.retail.ip.requirement.internal.repository.RequirementRepository;
 import fk.retail.ip.requirement.internal.repository.WarehouseInventoryRepository;
 import fk.retail.ip.requirement.internal.repository.WarehouseRepository;
 import fk.retail.ip.requirement.internal.repository.WarehouseSupplierSlaRepository;
+import fk.retail.ip.requirement.model.RequirementChangeMap;
+import fk.retail.ip.requirement.model.RequirementChangeRequest;
 import fk.retail.ip.ssl.client.SslClient;
 import fk.retail.ip.ssl.model.SupplierSelectionRequest;
 import fk.retail.ip.ssl.model.SupplierSelectionResponse;
@@ -46,6 +51,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.collections4.map.MultiKeyMap;
 import org.joda.time.DateTime;
 
 @Slf4j
@@ -62,9 +68,11 @@ public class CalculateRequirementCommand {
     private final ProductInfoRepository productInfoRepository;
     private final WarehouseSupplierSlaRepository warehouseSupplierSlaRepository;
     private final SslClient sslClient;
+    private final PayloadCreationHelper payloadCreationHelper;
     //TODO: remove
     private final ProjectionRepository projectionRepository;
     private final ObjectMapper objectMapper;
+    private final FdpIngestor fdpIngestor;
 
     private Set<String> fsns = Sets.newHashSet();
     private Map<String, String> warehouseCodeMap = Maps.newHashMap();
@@ -73,8 +81,11 @@ public class CalculateRequirementCommand {
     private ForecastContext forecastContext;
     private OnHandQuantityContext onHandQuantityContext;
 
+    //TODO:inject
+    //private PayloadCreationHelper payloadCreationHelper = new PayloadCreationHelper();
+
     @Inject
-    public CalculateRequirementCommand(WarehouseRepository warehouseRepository, GroupFsnRepository groupFsnRepository, PolicyRepository policyRepository, ForecastRepository forecastRepository, WarehouseInventoryRepository warehouseInventoryRepository, IwtRequestItemRepository iwtRequestItemRepository, OpenRequirementAndPurchaseOrderRepository openRequirementAndPurchaseOrderRepository, RequirementRepository requirementRepository, ProductInfoRepository productInfoRepository, WarehouseSupplierSlaRepository warehouseSupplierSlaRepository, SslClient sslClient, ProjectionRepository projectionRepository, ObjectMapper objectMapper) {
+    public CalculateRequirementCommand(WarehouseRepository warehouseRepository, GroupFsnRepository groupFsnRepository, PolicyRepository policyRepository, ForecastRepository forecastRepository, WarehouseInventoryRepository warehouseInventoryRepository, IwtRequestItemRepository iwtRequestItemRepository, OpenRequirementAndPurchaseOrderRepository openRequirementAndPurchaseOrderRepository, RequirementRepository requirementRepository, ProductInfoRepository productInfoRepository, WarehouseSupplierSlaRepository warehouseSupplierSlaRepository, SslClient sslClient, ProjectionRepository projectionRepository, ObjectMapper objectMapper, FdpIngestor fdpIngestor, PayloadCreationHelper payloadCreationHelper) {
         this.warehouseRepository = warehouseRepository;
         this.groupFsnRepository = groupFsnRepository;
         this.policyRepository = policyRepository;
@@ -88,6 +99,8 @@ public class CalculateRequirementCommand {
         this.sslClient = sslClient;
         this.projectionRepository = projectionRepository;
         this.objectMapper = objectMapper;
+        this.fdpIngestor = fdpIngestor;
+        this.payloadCreationHelper = payloadCreationHelper;
     }
 
     public CalculateRequirementCommand withFsns(Set<String> fsns) {
@@ -95,18 +108,20 @@ public class CalculateRequirementCommand {
         return this;
     }
 
-    private Set<String> initContexts() {
+    private Set<String> initContexts(MultiKeyMap<String, Boolean> fsnGroupPolicyMap) {
         this.warehouseCodeMap = getWarehouseCodeMap();
         this.fsnToGroupMap = getFsnToGroupMap(fsns);
         Set<String> validFsns = fsnToGroupMap.keySet();
         this.forecastContext = getForecastContext(validFsns);
         validFsns = forecastContext.getFsns();
-        this.policyContext = getPolicyContext(validFsns);
+        this.policyContext = getPolicyContext(validFsns,fsnGroupPolicyMap);
         this.onHandQuantityContext = getOnHandQuantityContext(validFsns);
         return validFsns;
     }
 
     public void execute() {
+        List<RequirementChangeRequest> requirementChangeRequestList = Lists.newArrayList();
+
         //mark existing requirements ad disabled
         List<Requirement> existingRequirements = requirementRepository.find(fsns, true);
         existingRequirements.forEach(requirement -> {
@@ -117,7 +132,10 @@ public class CalculateRequirementCommand {
         List<Projection> existingProjections = projectionRepository.find(fsns, true);
         existingProjections.forEach(projection -> projection.setEnabled(0));
 
-        Set<String> validFsns = initContexts();
+        MultiKeyMap<String, Boolean> fsnGroupPolicyMap = new MultiKeyMap();
+
+        Set<String> validFsns = initContexts(fsnGroupPolicyMap);
+
 
         //create requirement entities
         List<Requirement> allRequirements = Lists.newArrayList();
@@ -125,7 +143,7 @@ public class CalculateRequirementCommand {
         for (String fsn : validFsns) {
             Set<String> warehouses = forecastContext.getWarehouses(fsn);
             for (String warehouse : warehouses) {
-                Requirement requirement = getRequirement(fsn, warehouse, fsnToGroupMap.get(fsn));
+                Requirement requirement = getRequirement(fsn, warehouse, fsnToGroupMap.get(fsn),fsnGroupPolicyMap);
                 if (fsnToRequirementMap.containsKey(fsn) && fsnToRequirementMap.get(fsn) != null) {
                     fsnToRequirementMap.get(fsn).add(requirement);
                 } else {
@@ -138,14 +156,15 @@ public class CalculateRequirementCommand {
         //apply policies, mark error if critical policy is missing
         validFsns.forEach(fsn -> {
             List<Requirement> requirements = fsnToRequirementMap.get(fsn);
-            policyContext.applyPolicies(fsn, requirements, forecastContext, onHandQuantityContext);
+            policyContext.applyPolicies(fsn, requirements, forecastContext, onHandQuantityContext, requirementChangeRequestList);
             //the quantity has to be rounded after policy application
             requirements.forEach(requirement -> requirement.setQuantity(Math.round(requirement.getQuantity())));
         });
 
         //find supplier for non error fsns
         List<Requirement> validRequirements = allRequirements.stream().filter(requirement -> !Constants.ERROR_STATE.equals(requirement.getState())).collect(Collectors.toList());
-        populateSupplier(validRequirements);
+        populateSupplier(validRequirements,requirementChangeRequestList);
+
 
         //create dummy error entry for fsns without forecast or group
         Set<String> fsnsWithoutGroups = new HashSet<>(fsns);
@@ -188,6 +207,21 @@ public class CalculateRequirementCommand {
         }
         //save
         requirementRepository.persist(allRequirements);
+
+        //Add PROJECTION_CREATED events to fdp request
+        allRequirements.forEach(requirement -> {
+            if(!requirement.getState().equals(Constants.ERROR_STATE)) {
+                RequirementChangeRequest requirementChangeRequest = new RequirementChangeRequest();
+                List<RequirementChangeMap> requirementChangeMaps = Lists.newArrayList();
+                requirementChangeMaps.add(payloadCreationHelper.createChangeMap(OverrideKey.STATE.toString(), null, RequirementApprovalState.PRE_PROPOSED.toString(), FdpRequirementEventType.PROJECTION_CREATED.toString(), "Projection created", "system"));
+                requirementChangeRequest.setRequirement(requirement);
+                requirementChangeRequest.setRequirementChangeMaps(requirementChangeMaps);
+                requirementChangeRequestList.add(requirementChangeRequest);
+            }
+        });
+
+        //Push PROJECTION_CREATED, SUPPLIER_ASSIGNED and APP_ASSIGNED events to fdp
+        fdpIngestor.pushToFdp(requirementChangeRequestList);
     }
 
     private Requirement getErredRequirement(String fsn, String errorMessage) {
@@ -201,7 +235,7 @@ public class CalculateRequirementCommand {
         return requirement;
     }
 
-    private void populateSupplier(List<Requirement> requirements) {
+    private void populateSupplier(List<Requirement> requirements, List<RequirementChangeRequest> requirementChangeRequestList) {
         List<SupplierSelectionRequest> requests = createSupplierSelectionRequest(requirements);
         List<SupplierSelectionResponse> responses = sslClient.getSupplierSelectionResponse(requests);
         if (requests.size() != responses.size()) {
@@ -216,6 +250,8 @@ public class CalculateRequirementCommand {
         requirements.forEach(requirement -> {
             SupplierSelectionResponse supplierResponse = fsnWhSupplierTable.get(requirement.getFsn(), requirement.getWarehouse());
             if (supplierResponse != null) {
+                RequirementChangeRequest requirementChangeRequest = new RequirementChangeRequest();
+                List<RequirementChangeMap> requirementChangeMaps = Lists.newArrayList();
                 SupplierView supplier = supplierResponse.getSuppliers().get(0);
                 requirement.setSupplier(supplier.getSourceId());
                 requirement.setApp(supplier.getApp());
@@ -226,6 +262,12 @@ public class CalculateRequirementCommand {
                 requirement.setMrpCurrency(supplier.getVendorPreferredCurrency());
                 requirement.setInternational(!supplier.isLocal());
                 requirement.setSslId(supplierResponse.getEntityId());
+                //Add SUPPLIER_ASSIGNED and APP_ASSIGNED events to fdp request
+                requirementChangeMaps.add(payloadCreationHelper.createChangeMap(OverrideKey.SUPPLIER.toString(), null, supplier.getSourceId(), FdpRequirementEventType.SUPPLIER_ASSIGNED.toString(), "Supplier assigned", "system"));
+                requirementChangeMaps.add(payloadCreationHelper.createChangeMap(OverrideKey.APP.toString(), null, String.valueOf(supplier.getApp()), FdpRequirementEventType.APP_ASSIGNED.toString(), "App assigned", "system"));
+                requirementChangeRequest.setRequirement(requirement);
+                requirementChangeRequest.setRequirementChangeMaps(requirementChangeMaps);
+                requirementChangeRequestList.add(requirementChangeRequest);
             }
         });
     }
@@ -246,6 +288,34 @@ public class CalculateRequirementCommand {
             log.warn(e.getMessage(), e);
             return apiSla;
         }
+    }
+
+    private String getPolicyIds(MultiKeyMap<String,Boolean> fsnGroupPolicyMap,String fsn, String warehouse, String groupName) {
+        List<String> policyIdList = Lists.newArrayList();
+        PolicyType.getOrderPolicies().forEach(policy -> {
+            Boolean groupPolicy = fsnGroupPolicyMap.get(fsn,policy);
+            String policyId=null;
+            if(groupPolicy!=null){
+                if(groupPolicy==true)
+                    policyId = groupName+"_all_"+warehouse+"_"+policy;
+                else
+                    policyId = groupName+"_"+fsn+"_"+warehouse+"_"+policy;
+                policyIdList.add(policyId);
+            }
+        });
+        PolicyType.getControlPolicies().forEach(policy -> {
+            Boolean groupPolicy = fsnGroupPolicyMap.get(fsn,policy);
+            String policyId=null;
+            if(groupPolicy!=null){
+                if(groupPolicy==true)
+                    policyId = groupName+"_all_all_"+"_"+policy;
+                else
+                    policyId = groupName+"_"+fsn+"_all_"+policy;
+                policyIdList.add(policyId);
+            }
+        });
+        String policyIds = String.join(",", policyIdList);
+        return policyIds;
     }
 
     public List<SupplierSelectionRequest> createSupplierSelectionRequest(List<Requirement> requirements) {
@@ -276,7 +346,7 @@ public class CalculateRequirementCommand {
         return groupFsns.stream().collect(Collectors.toMap(GroupFsn::getFsn, GroupFsn::getGroup));
     }
 
-    private Requirement getRequirement(String fsn, String warehouse, Group group) {
+    private Requirement getRequirement(String fsn, String warehouse, Group group, MultiKeyMap<String,Boolean> fsnGroupPolicyMap) {
         Requirement requirement = new Requirement();
         requirement.setFsn(fsn);
         requirement.setWarehouse(warehouse);
@@ -294,6 +364,7 @@ public class CalculateRequirementCommand {
         requirementSnapshot.setIwitIntransitQty((int) onHandQuantityContext.getIwtQuantity(fsn, warehouse));
         requirementSnapshot.setInventoryQty((int) onHandQuantityContext.getInventoryQuantity(fsn, warehouse));
         requirementSnapshot.setQoh((int) onHandQuantityContext.getOnHandInventoryQuantity(fsn, warehouse));
+        requirementSnapshot.setPolicyIds(getPolicyIds(fsnGroupPolicyMap,fsn,warehouse,group.getName()));
         requirement.setRequirementSnapshot(requirementSnapshot);
         return requirement;
     }
@@ -305,8 +376,8 @@ public class CalculateRequirementCommand {
         return forecastContext;
     }
 
-    private PolicyContext getPolicyContext(Set<String> fsns) {
-        PolicyContext policyContext = new PolicyContext(objectMapper, warehouseCodeMap);
+    private PolicyContext getPolicyContext(Set<String> fsns, MultiKeyMap<String, Boolean> fsnGroupPolicyMap) {
+        PolicyContext policyContext = new PolicyContext(objectMapper, warehouseCodeMap, payloadCreationHelper);
         //add group level policies to context
         Set<Long> groupIds = fsns.stream().map(fsn -> fsnToGroupMap.get(fsn).getId()).collect(Collectors.toSet());
         List<Policy> groupPolicies = policyRepository.fetchByGroup(groupIds);
@@ -329,6 +400,19 @@ public class CalculateRequirementCommand {
         //override with fsn level policies
         List<Policy> policies = policyRepository.fetchByFsns(fsns);
         policies.forEach(policy -> policyContext.addPolicy(policy.getFsn(), policy.getPolicyType(), policy.getValue()));
+
+        //Create fsnGroupPolicyMap
+        //add fsn level policies
+        policies.forEach(policy -> {
+            fsnGroupPolicyMap.put(policy.getFsn(), policy.getPolicyType(), false);
+        });
+
+        //add group level policies if fsn level policy not present
+        groupPolicies.forEach(policy -> {
+            if(fsnGroupPolicyMap.get(policy.getFsn(), policy.getPolicyType())==null)
+                fsnGroupPolicyMap.put(policy.getFsn(),policy.getPolicyType(),true);
+        });
+
         return policyContext;
     }
 
