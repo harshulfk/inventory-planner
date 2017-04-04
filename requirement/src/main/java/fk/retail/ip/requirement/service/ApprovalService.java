@@ -133,10 +133,12 @@ public class ApprovalService<E extends AbstractEntity> {
                 }
                 requirementChangeRequest.setRequirementChangeMaps(requirementChangeMaps);
                 requirementChangeRequestList.add(requirementChangeRequest);
-                requirementRepository.flushAndClear();
+
             });
+
             //Push APPROVE and CANCEL events to fdp
             fdpIngestor.pushToFdp(requirementChangeRequestList);
+            requirementRepository.flushAndClear();
             log.info("Updating Projections tables for Requirements");
             requirementRepository.updateProjections(requirements, groupToTargetState);
         }
