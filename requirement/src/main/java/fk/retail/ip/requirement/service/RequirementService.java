@@ -158,8 +158,6 @@ public class RequirementService {
         log.info("Change state Request for {} number of requirements", requirements.size());
         approvalService.changeState(requirements, state, "dummyUser", forward, getter, new ApprovalService.CopyOnStateChangeAction(requirementRepository, requirementApprovalStateTransitionRepository, fdpIngestor, payloadCreationHelper));
         log.info("State changed for {} number of requirements", requirements.size());
-        requirementRepository.flushAndClear();
-        log.info("Requirement repository flushed");
         return "{\"msg\":\"Moved " + requirements.size() + " requirements to new state.\"}";
     }
 
