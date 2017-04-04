@@ -18,7 +18,7 @@ import javax.xml.bind.annotation.XmlRootElement;
 //todo: cleanup
 @Table(name = "projection_states")
 //@Table(name = "REQUIREMENT")
-public class Requirement extends AbstractEntity {
+public class  Requirement extends AbstractEntity {
 
     private static final long serialVersionUID = 1L;
 
