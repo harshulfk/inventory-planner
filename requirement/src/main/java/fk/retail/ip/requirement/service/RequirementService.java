@@ -12,7 +12,9 @@ import fk.retail.ip.requirement.internal.command.SearchCommand;
 import fk.retail.ip.requirement.internal.command.SearchFilterCommand;
 import fk.retail.ip.requirement.internal.entities.Requirement;
 import fk.retail.ip.requirement.internal.enums.OverrideStatus;
+import fk.retail.ip.requirement.internal.enums.RequirementApprovalAction;
 import fk.retail.ip.requirement.internal.factory.RequirementStateFactory;
+import fk.retail.ip.requirement.internal.repository.RequirementApprovalTransitionRepository;
 import fk.retail.ip.requirement.internal.repository.RequirementRepository;
 import fk.retail.ip.requirement.internal.states.RequirementState;
 import fk.retail.ip.requirement.model.*;
@@ -23,7 +25,10 @@ import org.json.JSONException;
 import javax.ws.rs.core.StreamingOutput;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -36,6 +41,7 @@ import java.util.stream.Collectors;
 public class RequirementService {
 
     private final RequirementRepository requirementRepository;
+    private final RequirementApprovalTransitionRepository requirementApprovalStateTransitionRepository;
     private final RequirementStateFactory requirementStateFactory;
     private final ApprovalService approvalService;
     private final Provider<CalculateRequirementCommand> calculateRequirementCommandProvider;
@@ -46,11 +52,13 @@ public class RequirementService {
     @Inject
     public RequirementService(RequirementRepository requirementRepository, RequirementStateFactory requirementStateFactory,
                               ApprovalService approvalService, Provider<CalculateRequirementCommand> calculateRequirementCommandProvider,
+                              RequirementApprovalTransitionRepository requirementApprovalStateTransitionRepository,
                               SearchFilterCommand searchFilterCommand, Provider<SearchCommand> searchCommandProvider) {
         this.requirementRepository = requirementRepository;
         this.requirementStateFactory = requirementStateFactory;
         this.approvalService = approvalService;
         this.calculateRequirementCommandProvider = calculateRequirementCommandProvider;
+        this.requirementApprovalStateTransitionRepository = requirementApprovalStateTransitionRepository;
         this.searchFilterCommand = searchFilterCommand;
         this.searchCommandProvider = searchCommandProvider;
     }
@@ -136,21 +144,19 @@ public class RequirementService {
     }
 
     public String changeState(RequirementApprovalRequest request) throws JSONException {
-        String action = request.getFilters().get("projection_action").toString();
-        Function<Requirement, String> getter = Requirement::getState;
-        List<Requirement> requirements;
+        log.info("Approval request received for " + request);
+        RequirementApprovalAction action = RequirementApprovalAction.valueOf(request.getFilters().get("projection_action").toString());
+        boolean forward = action.isForward();
         List<Long> ids = (List<Long>) request.getFilters().get("id");
         String state = (String) request.getFilters().get("state");
-        Set<Long> projectionIds = new HashSet<>();
+        Function<Requirement, String> getter = Requirement::getState;
+        List<Requirement> requirements;
         List<String> fsns = searchFilterCommand.getSearchFilterFsns(request.getFilters());
         requirements = requirementRepository.findRequirements(ids, state, fsns);
         log.info("Change state Request for {} number of requirements", requirements.size());
-        requirements.stream().forEach(e -> projectionIds.add(e.getProjectionId()));
-        approvalService.changeState(requirements, "dummyUser", action, getter, new ApprovalService.CopyOnStateChangeAction(requirementRepository));
+        approvalService.changeState(requirements, state, "dummyUser", forward, getter, new ApprovalService.CopyOnStateChangeAction(requirementRepository, requirementApprovalStateTransitionRepository ));
         log.info("State changed for {} number of requirements", requirements.size());
-        requirementRepository.updateProjection(projectionIds, approvalService.getTargetState(action));
-        log.info("Projections table updated for Requirements");
-        return "{\"msg\":\"Moved " + projectionIds.size() + " projections to new state.\"}";
+        return "{\"msg\":\"Moved " + requirements.size() + " requirements to new state.\"}";
     }
 
     public SearchResponse.GroupedResponse search(RequirementSearchRequest request) throws JSONException {
@@ -182,6 +188,8 @@ public class RequirementService {
         log.info("Got Search Response for Requirement");
         return groupedResponse;
     }
+
+
 
 
     public void calculateRequirement(CalculateRequirementRequest calculateRequirementRequest) {

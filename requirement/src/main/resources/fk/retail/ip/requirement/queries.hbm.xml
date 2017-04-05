@@ -380,4 +380,19 @@
         </query>
     </named-query>
 
+    <named-query name="RequirementApprovalTransition.getApprovalStateTransition">
+        <query>
+            <![CDATA[
+            SELECT t
+            FROM RequirementApprovalTransition t
+            WHERE
+                t.fromState = :fromState and
+                t.forward = :forward
+                  ]]>
+        </query>
+    </named-query>
+
+
+
+
 </entity-mappings>
