@@ -3,6 +3,8 @@ package fk.retail.ip.requirement.internal.command.upload;
 import com.google.common.collect.Lists;
 import fk.retail.ip.requirement.config.TestModule;
 import fk.retail.ip.requirement.internal.Constants;
+import fk.retail.ip.requirement.internal.command.FdpIngestor;
+import fk.retail.ip.requirement.internal.command.PayloadCreationHelper;
 import fk.retail.ip.requirement.internal.entities.Requirement;
 import fk.retail.ip.requirement.internal.entities.RequirementSnapshot;
 import fk.retail.ip.requirement.internal.enums.RequirementApprovalState;
@@ -32,6 +34,12 @@ public class ProposedUploadCommandTest {
     @InjectMocks
     ProposedUploadCommand uploadProposedCommand;
 
+    @Mock
+    FdpIngestor fdpIngestor;
+
+    @Mock
+    PayloadCreationHelper payloadCreationHelper;
+
     @Before
     public void init() {
         MockitoAnnotations.initMocks(this);
@@ -43,7 +51,7 @@ public class ProposedUploadCommandTest {
                 TestHelper.getProposedRequirementDownloadLineItem();
         List<Requirement> requirements = getRequirements();
         List<UploadOverrideFailureLineItem> uploadOverrideFailureLineItems = uploadProposedCommand.
-                execute(requirementDownloadLineItems, requirements);
+                execute(requirementDownloadLineItems, requirements,"");
 
         Map<Long, Requirement> requirementMap = requirements.stream().collect
                 (Collectors.toMap(Requirement::getId, Function.identity()));

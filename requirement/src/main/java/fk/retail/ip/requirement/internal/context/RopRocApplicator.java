@@ -2,23 +2,32 @@ package fk.retail.ip.requirement.internal.context;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import fk.retail.ip.requirement.internal.Constants;
+import fk.retail.ip.requirement.internal.command.PayloadCreationHelper;
 import fk.retail.ip.requirement.internal.entities.Requirement;
+import fk.retail.ip.requirement.internal.enums.FdpRequirementEventType;
+import fk.retail.ip.requirement.internal.enums.OverrideKey;
 import fk.retail.ip.requirement.internal.enums.PolicyType;
 import java.util.List;
 import java.util.Map;
+
+import fk.retail.ip.requirement.internal.enums.RequirementApprovalState;
+import fk.retail.ip.requirement.model.RequirementChangeMap;
+import fk.retail.ip.requirement.model.RequirementChangeRequest;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class RopRocApplicator extends PolicyApplicator {
 
-    public RopRocApplicator(ObjectMapper objectMapper) {
-        super(objectMapper);
+    public RopRocApplicator(ObjectMapper objectMapper, PayloadCreationHelper payloadCreationHelper) {
+        super(objectMapper, payloadCreationHelper);
     }
 
     @Override
-    public void applyPolicies(String fsn, List<Requirement> requirements, Map<PolicyType, String> policyTypeMap, ForecastContext forecastContext, OnHandQuantityContext onHandQuantityContext) {
+    public void applyPolicies(String fsn, List<Requirement> requirements, Map<PolicyType, String> policyTypeMap, ForecastContext forecastContext, OnHandQuantityContext onHandQuantityContext, List<RequirementChangeRequest> requirementChangeRequestList) {
+        PayloadCreationHelper payloadCreationHelper = new PayloadCreationHelper();
         Map<String, Double> warehouseToRopMap = parseRopRoc(policyTypeMap.get(PolicyType.ROP));
         Map<String, Double> warehouseToRocMap = parseRopRoc(policyTypeMap.get(PolicyType.ROC));
         requirements.stream().filter(requirement -> !Constants.ERROR_STATE.equals(requirement.getState())).forEach(requirement -> {
@@ -44,6 +53,13 @@ public class RopRocApplicator extends PolicyApplicator {
                 addToSnapshot(requirement, PolicyType.ROC, rocDays);
                 double demand = convertDaysToQuantity(rocDays, forecast);
                 requirement.setQuantity(demand - onHandQuantity);
+                //Add ORDER_POLICY_QUANTITY events to fdp request
+                RequirementChangeRequest requirementChangeRequest = new RequirementChangeRequest();
+                List<RequirementChangeMap> requirementChangeMaps = Lists.newArrayList();
+                requirementChangeMaps.add(payloadCreationHelper.createChangeMap(OverrideKey.QUANTITY.toString(), null, String.valueOf(requirement.getQuantity()), FdpRequirementEventType.ORDER_POLICY_QUANTITY.toString(), "ROP ROC policies applied", "system"));
+                requirementChangeRequest.setRequirement(requirement);
+                requirementChangeRequest.setRequirementChangeMaps(requirementChangeMaps);
+                requirementChangeRequestList.add(requirementChangeRequest);
             }
         });
     }

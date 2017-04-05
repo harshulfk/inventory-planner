@@ -1,7 +1,9 @@
 package fk.retail.ip.requirement.internal.enums;
 
+import com.google.common.collect.Lists;
 import fk.retail.ip.requirement.internal.Constants;
 import lombok.extern.slf4j.Slf4j;
+import java.util.List;
 
 @Slf4j
 public enum PolicyType {
@@ -27,4 +29,14 @@ public enum PolicyType {
         log.warn(Constants.INVALID_POLICY_TYPE, value);
         return UNKNOWN;
     }
-}
+
+    public static List<String> getOrderPolicies() {
+        List<String> orderPolicies = Lists.newArrayList(ROP.toString(), ROC.toString());
+        return orderPolicies;
+    }
+
+    public static List<String> getControlPolicies() {
+        List<String> controlPolicies = Lists.newArrayList(MAX_COVERAGE.toString(), CASE_SIZE.toString());
+        return controlPolicies;
+    }
+ }

@@ -7,9 +7,7 @@ import com.google.inject.Inject;
 import com.google.inject.Provider;
 import fk.retail.ip.core.poi.SpreadSheetReader;
 import fk.retail.ip.requirement.internal.Constants;
-import fk.retail.ip.requirement.internal.command.CalculateRequirementCommand;
-import fk.retail.ip.requirement.internal.command.SearchCommand;
-import fk.retail.ip.requirement.internal.command.SearchFilterCommand;
+import fk.retail.ip.requirement.internal.command.*;
 import fk.retail.ip.requirement.internal.entities.Requirement;
 import fk.retail.ip.requirement.internal.enums.OverrideStatus;
 import fk.retail.ip.requirement.internal.factory.RequirementStateFactory;
@@ -42,17 +40,22 @@ public class RequirementService {
     private final SearchFilterCommand searchFilterCommand;
     private final Provider<SearchCommand> searchCommandProvider;
     private final int PAGE_SIZE = 20;
+    private final FdpIngestor fdpIngestor;
+    private final PayloadCreationHelper payloadCreationHelper;
 
     @Inject
     public RequirementService(RequirementRepository requirementRepository, RequirementStateFactory requirementStateFactory,
                               ApprovalService approvalService, Provider<CalculateRequirementCommand> calculateRequirementCommandProvider,
-                              SearchFilterCommand searchFilterCommand, Provider<SearchCommand> searchCommandProvider) {
+                              SearchFilterCommand searchFilterCommand, Provider<SearchCommand> searchCommandProvider, FdpIngestor fdpIngestor, PayloadCreationHelper payloadCreationHelper) {
+
         this.requirementRepository = requirementRepository;
         this.requirementStateFactory = requirementStateFactory;
         this.approvalService = approvalService;
         this.calculateRequirementCommandProvider = calculateRequirementCommandProvider;
         this.searchFilterCommand = searchFilterCommand;
         this.searchCommandProvider = searchCommandProvider;
+        this.fdpIngestor = fdpIngestor;
+        this.payloadCreationHelper = payloadCreationHelper;
     }
 
     public StreamingOutput downloadRequirement(DownloadRequirementRequest downloadRequirementRequest) {
@@ -147,7 +150,7 @@ public class RequirementService {
         requirements = requirementRepository.findRequirements(ids, state, fsns);
         log.info("Change state Request for {} number of requirements", requirements.size());
         requirements.stream().forEach(e -> projectionIds.add(e.getProjectionId()));
-        approvalService.changeState(requirements, userId, action, getter, new ApprovalService.CopyOnStateChangeAction(requirementRepository));
+        approvalService.changeState(requirements, userId, action, getter, new ApprovalService.CopyOnStateChangeAction(requirementRepository, fdpIngestor, payloadCreationHelper));
         log.info("State changed for {} number of requirements", requirements.size());
         requirementRepository.updateProjection(projectionIds, approvalService.getTargetState(action));
         log.info("Projections table updated for Requirements");
