@@ -42,6 +42,10 @@ public class ManagerApplication extends Application<ManagerConfiguration> {
         Properties jpaProperties = new Properties();
         jpaProperties.put(JpaWithSpringModule.HIBERNATE_EJB_NAMING_STRATEGY,
                 "fk.retail.ip.manager.config.AnnotationRespectfulNamingStrategy");
+        jpaProperties.put("hibernate.jdbc.batch_size",30);
+        jpaProperties.put("hibernate.order_inserts", "true");
+        jpaProperties.put("hibernate.order_updates", "true");
+        jpaProperties.put("hibernate.jdbc.batch_versioned_data", "true");
         this.guiceBundle = GuiceBundle.<ManagerConfiguration>newBuilder()
                 .setConfigClass(ManagerConfiguration.class)
                 .addModule(new ManagerModule())
