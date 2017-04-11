@@ -141,6 +141,18 @@ public class JPARequirementRepository extends SimpleJpaGenericRepository<Require
         q.executeUpdate();
     }
 
+    @Override
+    public void persistAll(List<Requirement> entities) {
+        EntityManager entityManager = getEntityManager();
+        int count = 0;
+        for (Requirement entity : entities) {
+            persist(entity);
+            if (count % 100 == 0) {
+                entityManager.flush();
+            }
+        }
+    }
+
     private List<Requirement> fetchRequirements(String query, Map<String, Object> params) {
         List<Requirement> requirements = Lists.newArrayList();
         int pageNo = 0;

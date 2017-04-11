@@ -32,4 +32,8 @@ public interface RequirementRepository extends JpaGenericRepository<Requirement,
 
     //TODO: legacy code
     void updateProjections(List<Requirement> requirements, Map<Long, String> groupToTargetState);
+
+
+    void persistAll(List<Requirement> entities);
+
 }

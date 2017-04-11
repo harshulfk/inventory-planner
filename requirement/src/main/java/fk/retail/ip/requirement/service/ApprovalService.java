@@ -135,7 +135,7 @@ public class ApprovalService<E extends AbstractEntity> {
                 requirementChangeRequest.setRequirementChangeMaps(requirementChangeMaps);
                 requirementChangeRequestList.add(requirementChangeRequest);
             });
-            requirementRepository.persist(entitiesToPersist);
+            requirementRepository.persistAll(entitiesToPersist);
             log.info("Updating Projections tables for Requirements");
             requirementRepository.updateProjections(requirements, groupToTargetState);
             //Push APPROVE and CANCEL events to fdp
