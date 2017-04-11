@@ -75,6 +75,7 @@ public class ApprovalService<E extends AbstractEntity> {
 
         @Override
         public void execute(String userId, String fromState, boolean forward, List<Requirement> requirements) {
+            List<Requirement> entitiesToPersist = Lists.newArrayList();
             Map<Long, String> groupToTargetState = getGroupToTargetStateMap(fromState, forward);
             log.info("Constructed map for group to Target state " + groupToTargetState);
             Map<Long, String> requirementToTargetStateMap = getRequirementToTargetStateMap(groupToTargetState, requirements);
@@ -116,7 +117,7 @@ public class ApprovalService<E extends AbstractEntity> {
                         newEntity.setCreatedBy(userId);
                         newEntity.setPreviousStateId(requirement.getId());
                         newEntity.setCurrent(true);
-                        requirementRepository.persist(newEntity);
+                        entitiesToPersist.add(newEntity);
                         requirement.setCurrent(false);
                         requirementChangeRequest.setRequirement(newEntity);
                     }
@@ -134,6 +135,7 @@ public class ApprovalService<E extends AbstractEntity> {
                 requirementChangeRequest.setRequirementChangeMaps(requirementChangeMaps);
                 requirementChangeRequestList.add(requirementChangeRequest);
             });
+            requirementRepository.persist(entitiesToPersist);
             log.info("Updating Projections tables for Requirements");
             requirementRepository.updateProjections(requirements, groupToTargetState);
             //Push APPROVE and CANCEL events to fdp
