@@ -10,6 +10,8 @@ import com.amazonaws.services.s3.S3ClientOptions;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.PutObjectResult;
 import com.google.common.base.Objects;
+import com.google.inject.Inject;
+import fk.retail.ip.d42.config.D42Configuration;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.InputStream;
@@ -25,12 +27,13 @@ public class D42ClientImpl implements D42Client{
     private String DEFAULT_CONTENT_TYPE = "application/octet-stream";
 
 
-    public D42ClientImpl(String accessKey, String secretKey, String endPoint) {
-        AWSCredentials credentials = new BasicAWSCredentials(accessKey, secretKey);
+    @Inject
+    public D42ClientImpl(D42Configuration d42Configuration) {
+        AWSCredentials credentials = new BasicAWSCredentials(d42Configuration.getAccessKey(), d42Configuration.getSecretKey());
         ClientConfiguration clientConfig = new ClientConfiguration();
         clientConfig.setProtocol(Protocol.HTTP);
         d42Client = new AmazonS3Client(credentials, clientConfig);
-        d42Client.setEndpoint(endPoint);
+        d42Client.setEndpoint(d42Configuration.getUrl());
         d42Client.setS3ClientOptions(new S3ClientOptions().withPathStyleAccess(true));
     }
 

@@ -1,5 +1,6 @@
 package fk.retail.ip.manager.config;
 
+import fk.retail.ip.d42.config.D42Configuration;
 import fk.retail.ip.ssl.config.SslClientConfiguration;
 import fk.retail.ip.zulu.config.ZuluConfiguration;
 import fk.retail.ip.fdp.config.FdpConfiguration;
@@ -31,6 +32,9 @@ public class ManagerConfiguration extends Configuration implements HasDataSource
 
     @NotNull
     private FdpConfiguration fdpConfiguration;
+
+    @NotNull
+    private D42Configuration d42Configuration;
 
     @Valid
     @NotNull

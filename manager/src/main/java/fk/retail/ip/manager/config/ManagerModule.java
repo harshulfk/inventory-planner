@@ -5,6 +5,7 @@ import com.google.inject.AbstractModule;
 import com.google.inject.Provides;
 import com.google.inject.TypeLiteral;
 import com.google.inject.multibindings.Multibinder;
+import fk.retail.ip.d42.config.D42Configuration;
 import fk.retail.ip.ssl.config.SslClientConfiguration;
 import fk.retail.ip.fdp.config.FdpConfiguration;
 import fk.retail.ip.zulu.config.ZuluConfiguration;
@@ -54,6 +55,11 @@ public class ManagerModule extends AbstractModule {
     @Provides
     public FdpConfiguration getFdpConfiguration(ManagerConfiguration managerConfiguration) {
         return managerConfiguration.getFdpConfiguration();
+    }
+
+    @Provides
+    public D42Configuration getD42Configuration(ManagerConfiguration managerConfiguration) {
+        return managerConfiguration.getD42Configuration();
     }
 
     @Provides

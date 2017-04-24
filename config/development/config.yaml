@@ -97,3 +97,8 @@ clientConfiguration:
 sslClientConfiguration:
   url: http://10.85.52.106
   viewPath: "/supplier_selection"
+
+d42Configuration:
+  accessKey: "EKBK5XNIHLM7E3290RBX"
+  secretKey: "QGXi9BkrIArIb255tHRFR7trEcPSvxBi3X0LsBwP"
+  url: "http://10.47.2.2"
