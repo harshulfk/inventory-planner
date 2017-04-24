@@ -9,6 +9,8 @@ import fk.retail.ip.requirement.model.*;
 import fk.retail.ip.requirement.service.RequirementService;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.openxml4j.exceptions.InvalidFormatException;
+import org.glassfish.jersey.media.multipart.FormDataBodyPart;
+import org.glassfish.jersey.media.multipart.FormDataContentDisposition;
 import org.glassfish.jersey.media.multipart.FormDataParam;
 import org.json.JSONException;
 
@@ -68,7 +70,9 @@ public class RequirementResource {
     public Response uploadProjectionOverride(
             @FormDataParam("datafile") InputStream inputStream,
             @FormDataParam("state") String state,
-            @HeaderParam("X-Proxy-User") String userId
+            @HeaderParam("X-Proxy-User") String userId,
+            @FormDataParam("datafile") final FormDataBodyPart formBody,
+            @FormDataParam("datafile") final FormDataContentDisposition fileDetail
     ) {
 
         log.info("Upload Requirement request received for " + state + " state");
@@ -76,7 +80,7 @@ public class RequirementResource {
             if (userId == null) {
                 userId = "dummyUser";
             }
-            UploadResponse uploadResponse = requirementService.uploadRequirement(inputStream, state, userId);
+            UploadResponse uploadResponse = requirementService.uploadRequirement(inputStream, fileDetail, formBody, state, userId);
             log.info("Successfully updated " + uploadResponse.getSuccessfulRowCount() + " records");
             return Response.ok(uploadResponse).build();
         } catch (IOException ioException) {

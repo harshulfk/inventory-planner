@@ -20,6 +20,8 @@ import fk.retail.ip.requirement.internal.states.RequirementState;
 import fk.retail.ip.requirement.model.*;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.openxml4j.exceptions.InvalidFormatException;
+import org.glassfish.jersey.media.multipart.FormDataBodyPart;
+import org.glassfish.jersey.media.multipart.FormDataContentDisposition;
 import org.json.JSONException;
 
 import javax.ws.rs.core.StreamingOutput;
@@ -84,6 +86,8 @@ public class RequirementService {
 
     public UploadResponse uploadRequirement(
             InputStream inputStream,
+            FormDataContentDisposition fileDetail,
+            FormDataBodyPart formBody,
             String requirementState,
             String userId
     ) throws IOException, InvalidFormatException {
@@ -94,9 +98,12 @@ public class RequirementService {
             baos.write(buffer, 0, len);
         }
         baos.flush();
+        String fileName = fileDetail.getFileName();
         String timeStamp = new SimpleDateFormat("yyyy.MM.dd.HH.mm.ss").format(new Date());
-        String objectKey = String.format("%s:%s", timeStamp, userId);
-        d42Client.put(BUCKET_NAME, objectKey, new ByteArrayInputStream(baos.toByteArray()), null);
+        String objectKey = String.format("%s:%s:%s", timeStamp, userId, fileName);
+        String contentType = formBody.getMediaType().toString();
+
+        d42Client.put(BUCKET_NAME, objectKey, new ByteArrayInputStream(baos.toByteArray()), contentType);
 
         SpreadSheetReader spreadSheetReader = new SpreadSheetReader();
         List<Map<String, Object>> parsedMappingList = spreadSheetReader.read(new ByteArrayInputStream(baos.toByteArray()));
