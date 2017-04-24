@@ -6,6 +6,7 @@ import com.google.common.collect.Lists;
 import com.google.inject.Inject;
 import com.google.inject.Provider;
 import fk.retail.ip.core.poi.SpreadSheetReader;
+import fk.retail.ip.d42.client.D42Client;
 import fk.retail.ip.requirement.internal.Constants;
 import fk.retail.ip.requirement.internal.command.*;
 
@@ -22,9 +23,12 @@ import org.apache.poi.openxml4j.exceptions.InvalidFormatException;
 import org.json.JSONException;
 
 import javax.ws.rs.core.StreamingOutput;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 
+import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -44,16 +48,17 @@ public class RequirementService {
     private final Provider<CalculateRequirementCommand> calculateRequirementCommandProvider;
     private final SearchFilterCommand searchFilterCommand;
     private final Provider<SearchCommand> searchCommandProvider;
-    private final int PAGE_SIZE = 20;
     private final FdpRequirementIngestorImpl fdpRequirementIngestor;
-
+    private final D42Client d42Client;
+    private final int PAGE_SIZE = 20;
+    private final String BUCKET_NAME = "ip_requirements";
 
     @Inject
     public RequirementService(RequirementRepository requirementRepository, RequirementStateFactory requirementStateFactory,
                               ApprovalService approvalService, Provider<CalculateRequirementCommand> calculateRequirementCommandProvider,
                               RequirementApprovalTransitionRepository requirementApprovalStateTransitionRepository,
-                              SearchFilterCommand searchFilterCommand, Provider<SearchCommand> searchCommandProvider, FdpRequirementIngestorImpl fdpRequirementIngestor) {
-
+                              SearchFilterCommand searchFilterCommand, Provider<SearchCommand> searchCommandProvider, 
+                              FdpRequirementIngestorImpl fdpRequirementIngestor, D42Client d42Client) {
         this.requirementRepository = requirementRepository;
         this.requirementStateFactory = requirementStateFactory;
         this.approvalService = approvalService;
@@ -62,7 +67,7 @@ public class RequirementService {
         this.searchFilterCommand = searchFilterCommand;
         this.searchCommandProvider = searchCommandProvider;
         this.fdpRequirementIngestor = fdpRequirementIngestor;
-
+        this.d42Client = d42Client;
     }
 
     public StreamingOutput downloadRequirement(DownloadRequirementRequest downloadRequirementRequest) {
@@ -82,9 +87,20 @@ public class RequirementService {
             String requirementState,
             String userId
     ) throws IOException, InvalidFormatException {
+        ByteArrayOutputStream baos  = new ByteArrayOutputStream();
+        byte[] buffer = new byte[1024];
+        int len;
+        while ((len = inputStream.read(buffer)) > -1 ) {
+            baos.write(buffer, 0, len);
+        }
+        baos.flush();
+        String timeStamp = new SimpleDateFormat("yyyy.MM.dd.HH.mm.ss").format(new Date());
+        String objectKey = String.format("%s:%s", timeStamp, userId);
+        d42Client.put(BUCKET_NAME, objectKey, new ByteArrayInputStream(baos.toByteArray()), null);
 
         SpreadSheetReader spreadSheetReader = new SpreadSheetReader();
-        List<Map<String, Object>> parsedMappingList = spreadSheetReader.read(inputStream);
+        List<Map<String, Object>> parsedMappingList = spreadSheetReader.read(new ByteArrayInputStream(baos.toByteArray()));
+
         log.info("Uploaded file parsed and contains " + parsedMappingList.size() +  " records");
 
         if (parsedMappingList.size() == 0) {

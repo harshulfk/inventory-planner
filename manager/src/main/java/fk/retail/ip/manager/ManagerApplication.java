@@ -10,7 +10,11 @@ import fk.retail.ip.manager.config.ManagerModule;
 import fk.retail.ip.requirement.config.RequirementModule;
 import fk.retail.ip.ssl.config.SslClientModule;
 import fk.retail.ip.zulu.config.ZuluModule;
+<<<<<<< b00fa862dc2a5855ca2e43fe6e2b9e62f2bc01a4
 import fk.retail.ip.fdp.config.FdpModule;
+=======
+import fk.retail.ip.d42.config.D42ClientModule;
+>>>>>>> Added D42 module for upload od req file.
 import fk.sp.common.extensions.RequestContextFilter;
 import fk.sp.common.extensions.config.CustomEnumModule;
 import fk.sp.common.extensions.dropwizard.jersey.JerseyClientModule;
@@ -55,6 +59,7 @@ public class ManagerApplication extends Application<ManagerConfiguration> {
                 .addModule(new SslClientModule())
                 .addModule(new FdpModule())
                 .addModule(new RestbusSenderModule())
+                .addModule(new D42ClientModule())
                 .addModule(new JpaWithSpringModule(
                         Sets.newHashSet(
                                 "fk.retail.ip",
