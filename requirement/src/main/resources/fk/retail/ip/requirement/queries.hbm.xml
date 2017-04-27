@@ -3,7 +3,31 @@
                  xmlns="http://java.sun.com/xml/ns/persistence/orm"
                  xsi:schemaLocation="http://java.sun.com/xml/ns/persistence/orm http://java.sun.com/xml/ns/persistence/orm_1_0.xsd"
                  version="1.0">
+    <named-query name="findRequirementByProjectionIds">
+        <query>
+            <![CDATA[
+            SELECT r
+            FROM Requirement r
+            WHERE
+                r.projectionId IN (:projectionIds) AND
+                r.current = true AND
+                r.enabled = true
+            ]]>
+        </query>
+    </named-query>
 
+    <named-query name="findRequirementByProjectionIds.count">
+        <query>
+            <![CDATA[
+            SELECT count(r)
+            FROM Requirement r
+            WHERE
+                r.projectionId IN (:projectionIds) AND
+                r.current = true AND
+                r.enabled = true
+            ]]>
+        </query>
+    </named-query>
     <named-query name="findRequirementByIds">
         <query>
             <![CDATA[
@@ -11,6 +35,19 @@
             FROM Requirement r
             WHERE
                 r.id in :ids
+                 ]]>
+        </query>
+    </named-query>
+
+    <named-query name="findActiveRequirementForState">
+        <query>
+            <![CDATA[
+            SELECT r
+            FROM Requirement r
+            WHERE
+                r.id in :ids AND
+                r.current = true AND
+                r.state = :state
                  ]]>
         </query>
     </named-query>
@@ -47,7 +84,34 @@
             WHERE
                 r.enabled = 1 and
                 r.state = :state and
-                r.fsn in :fsn
+                r.fsn in :fsns
+                ]]>
+        </query>
+    </named-query>
+
+    <named-query name="Requirement.fetchEnabledByFsns">
+        <query>
+            <![CDATA[
+            SELECT r
+            FROM Requirement r
+            WHERE
+                r.enabled = :enabled and
+                r.fsn in :fsns
+                ]]>
+        </query>
+    </named-query>
+
+    <named-query name="Requirement.getProjectionIds">
+        <query>
+            <![CDATA[
+            SELECT DISTINCT(r.projectionId)
+            FROM Requirement r
+            WHERE
+                r.state = :state AND
+                r.fsn in :fsns AND
+                r.current = true AND
+                r.enabled = true
+                ORDER BY r.projectionId
                 ]]>
         </query>
     </named-query>
@@ -152,7 +216,7 @@
             SELECT w
             FROM Warehouse w
             WHERE
-                w.warehouseCode IN :whCodes
+                w.code IN :whCodes
             ]]>
         </query>
     </named-query>
@@ -163,7 +227,7 @@
             SELECT count(w)
             FROM Warehouse w
             WHERE
-                w.warehouseCode IN :whCodes
+                w.code IN :whCodes
             ]]>
         </query>
     </named-query>
@@ -176,6 +240,17 @@
             WHERE
                 iri.fsn IN :fsns AND
                 iri.status IN :statuses
+                ]]>
+        </query>
+    </named-query>
+
+    <named-query name="WarehouseInventory.fetchByFsns">
+        <query>
+            <![CDATA[
+            SELECT whinv
+            FROM WarehouseInventory whinv
+            WHERE
+                whinv.fsn IN :fsns
                 ]]>
         </query>
     </named-query>
@@ -202,7 +277,6 @@
         </query>
     </named-query>
 
-
     <named-query name="Policy.fetchByGroupIds">
         <query>
             <![CDATA[
@@ -211,6 +285,32 @@
             WHERE
                 p.group.id IN :ids AND
                 p.fsn IS NULL
+                ]]>
+        </query>
+    </named-query>
+
+
+    <named-query name="Policy.fetchByFsnsAndType">
+        <query>
+            <![CDATA[
+            SELECT p
+            FROM Policy p
+            WHERE
+                p.fsn IN :fsns AND
+                p.policyType = :type
+                ]]>
+        </query>
+    </named-query>
+
+    <named-query name="Policy.fetchByGroupIdsAndType">
+        <query>
+            <![CDATA[
+            SELECT p
+            FROM Policy p
+            WHERE
+                p.group.id IN :ids AND
+                p.fsn IS NULL AND
+                p.policyType = :type
                 ]]>
         </query>
     </named-query>
@@ -226,6 +326,52 @@
         </query>
     </named-query>
 
+    <named-query name="GroupFsn.getFsnsForGroup">
+        <query>
+            <![CDATA[
+            SELECT fsn
+            FROM GroupFsn gf
+            WHERE
+                gf.group.name = :groupName
+                ]]>
+        </query>
+    </named-query>
+
+    <named-query name="GroupFsn.findByGroupIds">
+        <query>
+            <![CDATA[
+            SELECT gf
+            FROM GroupFsn gf
+            WHERE
+                gf.group.id in :ids
+                ]]>
+        </query>
+    </named-query>
+
+
+    <named-query name="GroupFsn.getDistinctFsns">
+        <query>
+            <![CDATA[
+            SELECT DISTINCT fsn
+            FROM GroupFsn gf
+            WHERE
+                gf.group.enabled = true
+            ORDER BY gf.id
+                ]]>
+        </query>
+    </named-query>
+
+    <named-query name="Forecast.fetchByFsns">
+        <query>
+            <![CDATA[
+            SELECT f
+            FROM Forecast f
+            WHERE
+                f.fsn IN :fsns
+                ]]>
+        </query>
+    </named-query>
+
     <named-query name="getProductInfo">
         <query>
             <![CDATA[
@@ -236,5 +382,67 @@
             ]]>
         </query>
     </named-query>
+
+    <named-query name="ProcPurchaseOrder.fetchVerticalByFsn">
+        <query>
+            <![CDATA[
+            SELECT po.vertical
+            FROM ProcPurchaseOrder po
+            WHERE
+                po.fsn = :fsn
+            ]]>
+        </query>
+    </named-query>
+
+    <named-query name="WarehouseSupplierSla.fetchSlaByVerticalWhSupplier">
+        <query>
+            <![CDATA[
+            SELECT s.sla
+            FROM WarehouseSupplierSla s
+            WHERE
+                s.vertical = :vertical AND
+                s.warehouseId = :warehouse AND
+                s.supplierId = :supplier
+            ]]>
+        </query>
+    </named-query>
+
+    <named-query name="WarehouseSupplierSla.fetchAvgSlaByVerticalWh">
+        <query>
+            <![CDATA[
+            SELECT avg(s.sla)
+            FROM WarehouseSupplierSla s
+            WHERE
+                s.vertical = :vertical AND
+                s.warehouseId = :warehouse
+            ]]>
+        </query>
+    </named-query>
+
+    <named-query name="WarehouseSupplierSla.fetchAvgSlaByVertical">
+        <query>
+            <![CDATA[
+            SELECT avg(s.sla)
+            FROM WarehouseSupplierSla s
+            WHERE
+                s.vertical = :vertical
+            ]]>
+        </query>
+    </named-query>
+
+    <named-query name="RequirementApprovalTransition.getApprovalStateTransition">
+        <query>
+            <![CDATA[
+            SELECT t
+            FROM RequirementApprovalTransition t
+            WHERE
+                t.fromState = :fromState and
+                t.forward = :forward
+                  ]]>
+        </query>
+    </named-query>
+
+
+
 
 </entity-mappings>

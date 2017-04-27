@@ -1,12 +1,15 @@
 package fk.retail.ip.requirement.internal.repository;
 
+import com.google.common.collect.Lists;
 import com.google.inject.Inject;
 import fk.retail.ip.requirement.internal.entities.GroupFsn;
 import fk.sp.common.extensions.jpa.SimpleJpaGenericRepository;
 import java.util.List;
+import java.util.Set;
 import javax.inject.Provider;
 import javax.persistence.EntityManager;
 import javax.persistence.TypedQuery;
+import org.apache.commons.collections4.CollectionUtils;
 
 public class JPAGroupFsnRepository extends SimpleJpaGenericRepository<GroupFsn, Long> implements GroupFsnRepository {
 
@@ -16,10 +19,36 @@ public class JPAGroupFsnRepository extends SimpleJpaGenericRepository<GroupFsn, 
     }
 
     @Override
-    public List<GroupFsn> findByFsns(List<String> fsns) {
+    public List<GroupFsn> findByFsns(Set<String> fsns) {
+        if (CollectionUtils.isEmpty(fsns)) {
+            return Lists.newArrayList();
+        }
         TypedQuery<GroupFsn> query = getEntityManager()
                 .createNamedQuery("GroupFsn.fetchByFsns", GroupFsn.class);
         query.setParameter("fsns", fsns);
+        return query.getResultList();
+    }
+
+    @Override
+    public List<String> getFsns(String group) {
+        TypedQuery<String> query = getEntityManager().createNamedQuery("GroupFsn.getFsnsForGroup",String.class);
+        query.setParameter("groupName", group);
+        return query.getResultList();
+    }
+
+    @Override
+    public List<String> getAllFsns() {
+        TypedQuery<String> query = getEntityManager().createNamedQuery("GroupFsn.getDistinctFsns",String.class);
+        return query.getResultList();
+    }
+
+    @Override
+    public List<GroupFsn> findByGroupIds(Set<Long> groupIds) {
+        if (CollectionUtils.isEmpty(groupIds)) {
+            return Lists.newArrayList();
+        }
+        TypedQuery<GroupFsn> query = getEntityManager().createNamedQuery("GroupFsn.findByGroupIds",GroupFsn.class);
+        query.setParameter("ids", groupIds);
         return query.getResultList();
     }
 }

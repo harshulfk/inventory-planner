@@ -10,4 +10,8 @@ dependencies {
     compile 'org.apache.commons:commons-collections4:4.1'
     compile project(':core')
     compile project(':zulu-client')
+    compile project(':ssl-client')
+    compile project(':fdp-client')
+    compile project(':proc-client')
+    compile project(':d42-client')
 }

@@ -1,9 +1,17 @@
 package fk.retail.ip.requirement.internal.repository;
 
+import java.util.List;
+import java.util.Set;
+
 import fk.retail.ip.requirement.internal.entities.GroupFsn;
 import fk.sp.common.extensions.jpa.JpaGenericRepository;
-import java.util.List;
 
 public interface GroupFsnRepository extends JpaGenericRepository<GroupFsn, Long> {
-    List<GroupFsn> findByFsns(List<String> fsns);
+    List<GroupFsn> findByFsns(Set<String> fsns);
+
+    List<String> getFsns(String group);
+
+    List<String> getAllFsns();
+
+    List<GroupFsn> findByGroupIds(Set<Long> groupIds);
 }

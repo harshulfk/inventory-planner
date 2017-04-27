@@ -32,7 +32,6 @@ dataSource:
 rotationManagementConfig:
   persistantFilePath: "/var/run/fk-ip-inventory-planner/persistant_state.txt"
 
-
 logging:
   level: INFO
   loggers:
@@ -101,6 +100,12 @@ zuluConfiguration:
   clientId: "retail.rp"
   maxBatchSize: 30
 
+procClientConfiguration:
+  url: http://10.85.52.17
+  viewPath: "/requirements"
+  callbackUrl: http://10.85.53.212:32000/v1/requirement/callback/
+  requirementQueueName: proc_b2b_produciton
+
 fdpConfiguration:
   url: http://10.47.2.122:28223/ingestion/objects
   queueName: "fdp_requirement_ingestion"
@@ -109,12 +114,6 @@ fdpConfiguration:
   namespace: "/ip"
   requirementEntitySchemaVersion: "3.0"
   requirementEventSchemaVersion: "2.0"
-
-procClientConfiguration:
-  url: http://10.85.52.17
-  viewPath: "/requirements"
-  callbackUrl: http://10.85.53.212:32000/v1/requirement/callback/
-  requirementQueueName: proc_b2b_production
 
 sslClientConfiguration:
   url: http://10.85.52.106
